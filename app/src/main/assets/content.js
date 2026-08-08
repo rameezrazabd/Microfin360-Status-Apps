@@ -637,7 +637,7 @@ try {
         });
     }
 
-    function performZeroTouchSync(force = false) {
+    window.performZeroTouchSync = function(force = false) {
         if (!force && localStorage.getItem('microfin_sync_status') === 'DONE') return;
         window.runGlobalHierarchySync(true, (success) => {
             if(success) {
@@ -1342,8 +1342,10 @@ try {
         document.getElementById('ghost-close').onclick = () => panel.remove();
 
         function renderUI() {
-            let uType = sessionStorage.getItem('mf_user_type');
             let container = document.getElementById('controls-container');
+            if (!container) return;
+            
+            let uType = sessionStorage.getItem('mf_user_type');
             let dateHtml = `
                 <div style="flex:1;">
                     <label style="font-size:10px; font-weight:bold; color:#34495e;">📅 তারিখ:</label>
@@ -1351,7 +1353,8 @@ try {
                 </div>
             `;
 
-            document.getElementById('panel-title').innerText = "🚀 MIS & AIS Checker-DSK_IT";
+            let titleEl = document.getElementById('panel-title');
+            if(titleEl) titleEl.innerText = "🚀 MIS & AIS Checker-DSK_IT";
 
             if (uType === 'BRANCH') {
                 container.innerHTML = dateHtml; 
@@ -2121,11 +2124,12 @@ try {
     let isSyncing = false; 
     let isToggleClosed = false; 
 
+    // Capture main window API if user navigates there manually
     const origOpen = XMLHttpRequest.prototype.open;
     const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
     const origSend = XMLHttpRequest.prototype.send;
 
-    XMLHttpRequest.prototype.open = function(method, url) { this._url = url; this._headers = {}; origOpen.apply(this, arguments); };
+    XMLHttpRequest.prototype.open = function(method, url) { this._url = url; this._method = method; this._headers = {}; origOpen.apply(this, arguments); };
     XMLHttpRequest.prototype.setRequestHeader = function(name, value) { this._headers[name] = value; origSetHeader.apply(this, arguments); };
     XMLHttpRequest.prototype.send = function(body) {
         if (this._headers && (this._headers['Authorization'] || this._headers['authorization'])) {
@@ -2142,6 +2146,15 @@ try {
             try {
                 sessionStorage.setItem('mf_cloned_url', clonedUrl);
                 localStorage.setItem('mf_cloned_url_backup', clonedUrl);
+                
+                let bodyStr = body;
+                if (body instanceof FormData) {
+                    let p = new URLSearchParams();
+                    for (let [k,v] of body.entries()) p.append(k, v);
+                    bodyStr = p.toString();
+                }
+                let template = { url: clonedUrl, method: this._method || 'POST', headers: clonedHeaders, body: bodyStr };
+                sessionStorage.setItem('mf_api_template', JSON.stringify(template));
             } catch(e){}
             document.dispatchEvent(new Event('ApiCaptured'));
         }
@@ -2170,16 +2183,28 @@ try {
                     } catch(e){}
                 }
             }
+            
+            let urlStr = (typeof url === 'string' ? url : (url && url.url ? url.url : '') || '');
+            if (urlStr && (urlStr.includes('cbo_branch') || urlStr.includes('cbo_member_status') || (urlStr.includes('members') && (urlStr.includes('limit=') || urlStr.includes('ajax') || urlStr.includes('list'))))) {
+                clonedUrl = urlStr;
+                isCapturing = false;
+                try {
+                    sessionStorage.setItem('mf_cloned_url', clonedUrl);
+                    localStorage.setItem('mf_cloned_url_backup', clonedUrl);
+                    
+                    let bodyStr = (options && options.body) ? options.body : null;
+                    if (bodyStr instanceof FormData) {
+                        let p = new URLSearchParams();
+                        for (let [k,v] of bodyStr.entries()) p.append(k, v);
+                        bodyStr = p.toString();
+                    }
+                    let template = { url: clonedUrl, method: (options && options.method) ? options.method : 'POST', headers: clonedHeaders, body: bodyStr };
+                    sessionStorage.setItem('mf_api_template', JSON.stringify(template));
+                } catch(e){}
+                document.dispatchEvent(new Event('ApiCaptured'));
+            }
             return origFetch.apply(this, arguments);
         };
-    }
-
-    function triggerVueChange(el, value, win) {
-        if (!el) return;
-        el.value = value;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        if (win && win.jQuery) win.jQuery(el).trigger('change');
     }
 
     // ২. ডাটা ম্যানেজমেন্ট (Safe Parsing)
@@ -2195,47 +2220,164 @@ try {
         };
     }
 
-    // ৪. API ডেটা ফেচার (Strict & Proven Logic)
+    // ৩. API টেমপ্লেট সংগ্রহ করা (Background Iframe)
+    async function ensureApiAndBranchList() {
+        if (sessionStorage.getItem('mf_cloned_url') || localStorage.getItem('mf_cloned_url_backup')) {
+            return;
+        }
+
+        return new Promise((resolve) => {
+            isCapturing = true;
+            let ifr = document.createElement('iframe');
+            ifr.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none; z-index:-9999;';
+            ifr.src = window.location.origin + window.location.pathname.replace('/#/', '/').replace('/#', '/') + '#/members/members/index';
+            document.body.appendChild(ifr);
+
+            let timer = setTimeout(() => {
+                isCapturing = false;
+                if(ifr.parentNode) ifr.remove();
+                resolve();
+            }, 12000);
+
+            ifr.onload = () => {
+                setTimeout(async () => {
+                    try {
+                        let doc = ifr.contentDocument || ifr.contentWindow.document;
+                        let win = ifr.contentWindow;
+
+                        if (win && win.XMLHttpRequest) {
+                            const ifrOpen = win.XMLHttpRequest.prototype.open;
+                            const ifrSend = win.XMLHttpRequest.prototype.send;
+                            const ifrSetHeader = win.XMLHttpRequest.prototype.setRequestHeader;
+
+                            win.XMLHttpRequest.prototype.open = function(m, u) { 
+                                this._url = u; 
+                                this._method = m; 
+                                this._headers = {}; 
+                                ifrOpen.apply(this, arguments); 
+                            };
+                            
+                            win.XMLHttpRequest.prototype.setRequestHeader = function(k, v) { 
+                                this._headers[k] = v; 
+                                ifrSetHeader.apply(this, arguments); 
+                            };
+                            
+                            win.XMLHttpRequest.prototype.send = function(body) {
+                                if (this._url && (this._url.includes('cbo_branch') || this._url.includes('cbo_member_status') || (this._url.includes('members') && (this._url.includes('limit=') || this._url.includes('ajax') || this._url.includes('list'))))) {
+                                    clonedUrl = this._url; 
+                                    clonedHeaders = Object.assign({}, this._headers); 
+                                    try {
+                                        sessionStorage.setItem('mf_cloned_url', clonedUrl);
+                                        localStorage.setItem('mf_cloned_url_backup', clonedUrl);
+                                        sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
+                                        localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
+                                        
+                                        let bodyStr = body;
+                                        if (body instanceof win.FormData || body instanceof FormData) {
+                                            let p = new URLSearchParams();
+                                            for (let [k,v] of body.entries()) p.append(k, v);
+                                            bodyStr = p.toString();
+                                        }
+                                        let template = { url: clonedUrl, method: this._method || 'POST', headers: clonedHeaders, body: bodyStr };
+                                        sessionStorage.setItem('mf_api_template', JSON.stringify(template));
+                                    } catch(e){}
+                                }
+                                ifrSend.apply(this, arguments);
+                            };
+                        }
+
+                        let filterBtn = doc.querySelector('.filter-btn') || doc.querySelector('.fa-filter') || doc.querySelector('[title="Filter"]');
+                        if (filterBtn) filterBtn.click();
+
+                        await new Promise(r => setTimeout(r, 200));
+
+                        let sBtn = doc.querySelector('#custom-search-btn') || doc.querySelector('.search-btn') || doc.querySelector('button[type="submit"]');
+                        if (sBtn) {
+                            sBtn.click();
+                            let checks = 0;
+                            while (!sessionStorage.getItem('mf_cloned_url') && checks < 20) {
+                                await new Promise(r => setTimeout(r, 150));
+                                checks++;
+                            }
+                        }
+
+                        clearTimeout(timer);
+                        isCapturing = false;
+                        if(ifr.parentNode) ifr.remove();
+                        resolve();
+                    } catch(e) {
+                        clearTimeout(timer);
+                        isCapturing = false;
+                        if(ifr.parentNode) ifr.remove();
+                        resolve();
+                    }
+                }, 1500);
+            };
+        });
+    }
+
+    // ৪. API ডেটা ফেচার (High Speed - Main Window Execution)
     async function fetchMemberCount(branchId, nidStatus) {
-        if (!clonedUrl) {
-            clonedUrl = sessionStorage.getItem('mf_cloned_url') || localStorage.getItem('mf_cloned_url_backup');
+        let tmplStr = sessionStorage.getItem('mf_api_template');
+        if (!tmplStr) {
+            // Fallback to GET method if template not found but URL is
+            let cUrl = sessionStorage.getItem('mf_cloned_url') || localStorage.getItem('mf_cloned_url_backup');
+            if(!cUrl) return 0;
             try { 
                 let savedHd = sessionStorage.getItem('mf_cloned_headers') || localStorage.getItem('mf_cloned_headers_backup');
                 if(savedHd) clonedHeaders = JSON.parse(savedHd); 
             } catch(e){}
-        }
-        if(!clonedUrl) return 0;
-        
-        // Preserve original query parameters ONLY if not rewriting, otherwise clear incompatible ones
-        let basePath = window.location.pathname.replace('/#/', '/').replace('/#', '/');
-        if (!basePath.endsWith('/')) basePath += '/';
-        let urlObj = new URL(clonedUrl.startsWith('http') ? clonedUrl : window.location.origin + basePath + clonedUrl);
-        
-        if (urlObj.pathname.includes('reports/po-mis-reports')) {
-            urlObj.pathname = urlObj.pathname.replace(/reports\/po-mis-reports\/[a-zA-Z0-9-]+/i, 'members/members/ajax_list');
-            let existingBranch = urlObj.searchParams.get('cbo_branch');
-            urlObj.search = '';
-            if (!branchId || branchId === '' || branchId === 'SELF' || branchId === '0' || branchId === '-1') {
-                if (existingBranch && existingBranch !== '-1') {
-                    branchId = existingBranch;
-                }
-            }
+            let basePath = window.location.pathname.replace('/#/', '/').replace('/#', '/');
+            if (!basePath.endsWith('/')) basePath += '/';
+            let urlObj = new URL(cUrl.startsWith('http') ? cUrl : window.location.origin + basePath + cUrl);
+            urlObj.searchParams.set('cbo_branch', (branchId && branchId !== 'SELF' && branchId !== '0') ? branchId : '');
+            urlObj.searchParams.set('cbo_nid_status', nidStatus);
+            urlObj.searchParams.set('cbo_member_status', 'A');
+            try {
+                let r = await fetch(urlObj.toString(), { method: 'GET', headers: clonedHeaders });
+                let d = await r.json();
+                return d.total || d.total_rows || d.count || d.recordsTotal || d.recordsFiltered || 0;
+            } catch(e) { return 0; }
         }
 
-        urlObj.searchParams.set('limit', '1');
-        if (branchId && branchId !== '' && branchId !== 'SELF' && branchId !== '0' && branchId !== '-1') {
-            urlObj.searchParams.set('cbo_branch', branchId);
-        } else if (!urlObj.searchParams.has('cbo_branch')) {
-            urlObj.searchParams.set('cbo_branch', '');
-        }
-        urlObj.searchParams.set('cbo_nid_status', nidStatus);
-        urlObj.searchParams.set('cbo_member_status', 'A'); 
         try {
-            const response = await fetch(urlObj.toString(), { headers: clonedHeaders });
-            if (!response.ok) return 0;
-            const data = await response.json();
-            return data.total || data.total_rows || data.count || 0;
-        } catch (error) {
+            let t = JSON.parse(tmplStr);
+            let url = t.url;
+            let options = { method: t.method || 'POST', headers: Object.assign({}, t.headers || {}) };
+            
+            if (t.body) {
+                if (typeof t.body === 'string') {
+                    let p = new URLSearchParams(t.body);
+                    p.set('cbo_branch', (branchId && branchId !== 'SELF' && branchId !== '0') ? branchId : '');
+                    p.set('cbo_nid_status', nidStatus);
+                    p.set('cbo_member_status', 'A');
+                    options.body = p.toString();
+                    
+                    // Force content-type if not present for URLSearchParams
+                    if (!options.headers['Content-Type'] && !options.headers['content-type']) {
+                        options.headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+                    }
+                } else {
+                    let u = new URLSearchParams();
+                    for(let k in t.body) u.append(k, t.body[k]);
+                    u.set('cbo_branch', (branchId && branchId !== 'SELF' && branchId !== '0') ? branchId : '');
+                    u.set('cbo_nid_status', nidStatus);
+                    u.set('cbo_member_status', 'A');
+                    options.body = u.toString();
+                    options.headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+                }
+            } else {
+                let u = new URL(url.startsWith('http') ? url : (window.location.origin + url));
+                u.searchParams.set('cbo_branch', (branchId && branchId !== 'SELF' && branchId !== '0') ? branchId : '');
+                u.searchParams.set('cbo_nid_status', nidStatus);
+                u.searchParams.set('cbo_member_status', 'A');
+                url = u.toString();
+            }
+            
+            let r = await window.fetch(url, options);
+            let d = await r.json();
+            return d.total || d.total_rows || d.count || d.recordsTotal || d.recordsFiltered || 0;
+        } catch(e) {
             return 0;
         }
     }
@@ -2362,7 +2504,7 @@ try {
                 mvLevel.onchange(); 
             }
 
-            // 🌟 Make header draggable just like the other two modules
+            // 🌟 Make header draggable
             let isDraggingMem = false, initialXMem, initialYMem;
             const memHeader = document.getElementById('mem-report-header');
             if (memHeader) {
@@ -2392,13 +2534,14 @@ try {
                 sessionStorage.removeItem('mf_auto_synced');
                 sessionStorage.removeItem('mf_cloned_url');
                 sessionStorage.removeItem('mf_user_type');
+                sessionStorage.removeItem('mf_api_template');
                 localStorage.removeItem('microfin_zMap');
                 localStorage.removeItem('microfin_aMap');
                 localStorage.removeItem('microfin_role');
                 localStorage.removeItem('microfin_branch_list');
                 localStorage.removeItem('microfin_sync_status');
                 localStorage.removeItem('mf_cloned_url_backup');
-                performZeroTouchSync(true);
+                if (typeof window.performZeroTouchSync === 'function') window.performZeroTouchSync(true);
             };
 
             document.getElementById('close-panel-btn').onclick = () => {
@@ -2556,79 +2699,12 @@ try {
                     const selectedVal = filterEl ? filterEl.value : 'ALL';
 
                     btn.disabled = true;
-                    status.innerText = "Capturing System Configuration...";
+                    status.innerText = "Processing configuration...";
                     document.getElementById('table-container').innerHTML = ''; 
                     document.getElementById('export-btn').style.display = 'none';
 
                     // Ensure basic hierarchy is synced
                     await new Promise(resolve => window.runGlobalHierarchySync(false, resolve));
-
-                    // Silently capture exact Member API URL
-                    status.innerText = "Connecting to Member Database...";
-                    await new Promise(resolve => {
-                        let ifr = document.createElement('iframe');
-                        ifr.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; opacity:0; pointer-events:none; z-index:-9999; visibility:hidden;';
-                        ifr.src = window.location.origin + window.location.pathname.replace('/#/', '/').replace('/#', '/') + '#/members/members/index';
-                        document.body.appendChild(ifr);
-                        
-                        let timer = setTimeout(() => {
-                            if(ifr.parentNode) ifr.remove();
-                            resolve();
-                        }, 25000);
-
-                        ifr.onload = () => {
-                            setTimeout(async () => {
-                                try {
-                                    let doc = ifr.contentDocument || ifr.contentWindow.document;
-                                    let win = ifr.contentWindow;
-                                    
-                                    const origOpen = win.XMLHttpRequest.prototype.open;
-                                    const origSend = win.XMLHttpRequest.prototype.send;
-                                    win.XMLHttpRequest.prototype.open = function(m, u) { this._url = u; origOpen.apply(this, arguments); };
-                                    win.XMLHttpRequest.prototype.send = function(b) {
-                                        if (this._url && this._url.includes('members/members/ajax_list')) {
-                                            clonedUrl = this._url;
-                                            sessionStorage.setItem('mf_cloned_url', clonedUrl);
-                                            localStorage.setItem('mf_cloned_url_backup', clonedUrl);
-                                        }
-                                        origSend.apply(this, arguments);
-                                    };
-                                    
-                                    const origFetch = win.fetch;
-                                    if(origFetch) {
-                                        win.fetch = function(url, options) {
-                                            let urlStr = (typeof url === 'string' ? url : (url && url.url ? url.url : '') || '');
-                                            if (urlStr && urlStr.includes('members/members/ajax_list')) {
-                                                clonedUrl = urlStr;
-                                                sessionStorage.setItem('mf_cloned_url', clonedUrl);
-                                                localStorage.setItem('mf_cloned_url_backup', clonedUrl);
-                                            }
-                                            return origFetch.apply(this, arguments);
-                                        };
-                                    }
-                                    
-                                    let waitLimit = 60; // 18 seconds for slow mobile
-                                    while(!doc.querySelector('#custom-search-btn') && !doc.querySelector('.search-btn') && !doc.querySelector('button[type="submit"]') && waitLimit > 0) {
-                                        await new Promise(r => setTimeout(r, 300));
-                                        waitLimit--;
-                                    }
-                                    
-                                    let sBtn = doc.querySelector('#custom-search-btn') || doc.querySelector('.search-btn') || doc.querySelector('button[type="submit"]');
-                                    if(sBtn) {
-                                        sBtn.click();
-                                        let checks = 0;
-                                        while(!clonedUrl && checks < 40) { // 6 seconds for API call
-                                            await new Promise(r => setTimeout(r, 150));
-                                            checks++;
-                                        }
-                                    }
-                                } catch(e) {}
-                                clearTimeout(timer);
-                                if(ifr.parentNode) ifr.remove();
-                                resolve();
-                            }, 1000);
-                        };
-                    });
 
                     let savedBListStr = localStorage.getItem('microfin_branch_list');
                     let rawBranches = [];
@@ -2657,18 +2733,51 @@ try {
                         }
                     }
 
+                    status.innerText = "Checking system readiness...";
+                    
+                    if (!sessionStorage.getItem('mf_cloned_url') && !localStorage.getItem('mf_cloned_url_backup')) {
+                        status.innerText = "Connecting to Data Source (background)...";
+                        await ensureApiAndBranchList();
+                    }
+
+                    if (!sessionStorage.getItem('mf_cloned_url') && !localStorage.getItem('mf_cloned_url_backup')) {
+                        status.innerHTML = '<span style="color:#e74c3c;">Connection failed. Please visit Member > Member List manually once.</span>';
+                        setTimeout(() => { if(!status || !status.parentNode) return; status.innerText = "Ready"; btn.disabled = false; }, 6000);
+                        return;
+                    }
+
                     let currentReportStructure = { 
                         maps: maps, 
                         rawBranches: rawBranches, 
                         fetchedCounts: {}
                     };
 
-                    for (let b of rawBranches) {
-                        status.innerText = `Processing: ${b.name}`;
-                        let active = await fetchMemberCount(b.id, '');
-                        let verified = await fetchMemberCount(b.id, '1');
-                        currentReportStructure.fetchedCounts[b.id] = { active: active, verified: verified };
+                    status.innerText = `Connecting...`;
+                    
+                    let concurrency = 5; 
+                    let index = 0;
+                    let completed = 0;
+                    let totalTasks = rawBranches.length;
+                    
+                    async function worker() {
+                        while (index < totalTasks) {
+                            let i = index++;
+                            let b = rawBranches[i];
+                            
+                            let active = await fetchMemberCount(b.id, '');
+                            let verified = await fetchMemberCount(b.id, '1');
+                            currentReportStructure.fetchedCounts[b.id] = { active: active, verified: verified };
+                            
+                            completed++;
+                            status.innerText = `Fast Scanning (${completed}/${totalTasks})...`;
+                        }
                     }
+                    
+                    let workers = [];
+                    for (let w = 0; w < Math.min(concurrency, totalTasks); w++) {
+                        workers.push(worker());
+                    }
+                    await Promise.all(workers);
 
                     renderTable(currentReportStructure);
                     
@@ -2719,8 +2828,8 @@ try {
         if (isOnDashboard) {
             if (!hasSyncedThisPageLoad) {
                 hasSyncedThisPageLoad = true;
-                if (localStorage.getItem('microfin_sync_status') !== 'DONE') {
-                    performZeroTouchSync();
+                if (localStorage.getItem('microfin_sync_status') !== 'DONE' && typeof window.performZeroTouchSync === 'function') {
+                    window.performZeroTouchSync();
                 }
             } 
             
@@ -2742,6 +2851,7 @@ try {
     }, 1000);
 
 })();
+
 
 
 
