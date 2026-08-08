@@ -2834,14 +2834,25 @@ try {
 
                 document.getElementById('export-btn').onclick = () => {
                     let table = document.getElementById('reportTable');
-                    let blob = new Blob([`<html><head><meta charset="UTF-8"></head><body>${table.outerHTML}</body></html>`], {type: 'application/vnd.ms-excel'});
-                    let a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
+                    let htmlContent = `<html><head><meta charset="UTF-8"></head><body>${table.outerHTML}</body></html>`;
+                    
                     let filterEl = document.getElementById('filter-selection');
-                    let fileName = filterEl && filterEl.value !== 'ALL' ? filterEl.value : 'All_Branches';
+                    let name = filterEl && filterEl.value !== 'ALL' ? filterEl.options[filterEl.selectedIndex].text.replace(/\s+/g, '_') : 'All_Branches';
                     let dateSuffix = new Date().toISOString().split('T')[0];
-                    a.download = `Hierarchical_Report_${fileName}_${dateSuffix}.xls`;
-                    a.click();
+                    let fileName = `Member_Verification_${name}_${dateSuffix}.xls`;
+
+                    if (window.AndroidDownloader && window.AndroidDownloader.saveExcel) {
+                        window.AndroidDownloader.saveExcel(htmlContent, fileName);
+                    } else {
+                        let blob = new Blob([htmlContent], {type: 'application/vnd.ms-excel;charset=utf-8;'});
+                        let a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(a.href);
+                    }
                 };
             }
         } catch (e) {
