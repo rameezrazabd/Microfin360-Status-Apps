@@ -116,11 +116,11 @@ try {
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'central-sync-toast';
-            toast.style.cssText = 'position:fixed; top:20px; right:20px; background:#f39c12; color:white; padding:12px 18px; z-index:9999999; border-radius:6px; font-weight:bold; font-size:13px; font-family:Arial; box-shadow:0 6px 16px rgba(0,0,0,0.35); transition:all 0.3s ease; display:flex; align-items:center; gap:8px;';
+            toast.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#f39c12; color:white; padding:8px 12px; z-index:9999999; border-radius:4px; font-weight:bold; font-size:12px; font-family:Arial; box-shadow:0 4px 10px rgba(0,0,0,0.25); transition:all 0.3s ease; display:flex; align-items:center; gap:6px;';
             document.body.appendChild(toast);
         }
         toast.style.background = '#f39c12';
-        toast.innerHTML = '<span>⚙️ Branch/Area/Zone Sync: Scanning Zones, Areas & Branches...</span>';
+        toast.innerHTML = '<span>⚙️ জোন, অঞ্চল, শাখা সিংক হচ্ছে...</span>';
 
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:fixed; top:0px; left:-9999px; width:1200px; height:800px; border:none; z-index:-1;';
@@ -131,7 +131,7 @@ try {
             if (document.body.contains(iframe)) iframe.remove();
             window._isCentralSyncRunning = false;
             toast.style.background = '#e74c3c';
-            toast.innerHTML = '<span>⚠️ Sync Taking Long... Will Retry automatically!</span>';
+            toast.innerHTML = '<span>⚠️ সিংক হতে সময় লাগছে... পরে আবার চেষ্টা করা হবে!</span>';
             setTimeout(() => toast.remove(), 3000);
             if (callback) callback(false);
         }, 45000);
@@ -286,7 +286,7 @@ try {
                         }
                     } else {
                         uType = 'BRANCH';
-                        let myName = "My Branch";
+                        let myName = localStorage.getItem('microfin_entity_name') || "My Branch";
                         let myId = "SELF";
                         if (branchSel && branchSel.options && branchSel.options.length > 0) {
                             Array.from(branchSel.options).forEach(opt => {
@@ -322,7 +322,7 @@ try {
                         localStorage.setItem('microfin_sync_status', 'DONE');
 
                         toast.style.background = '#27ae60';
-                        toast.innerHTML = `<span>✅ Branch/Area/Zone Sync Complete! (${branches.length} Branches Ready)</span>`;
+                        toast.innerHTML = `<span>✅ জোন, অঞ্চল, শাখা সিংক সম্পন্ন! (${branches.length}টি প্রস্তুত)</span>`;
                         setTimeout(() => toast.remove(), 2500);
                         window.dispatchEvent(new CustomEvent('mf_central_sync_completed'));
                         if (callback) callback(true);
@@ -339,7 +339,7 @@ try {
                     if (document.body.contains(iframe)) iframe.remove();
                     window._isCentralSyncRunning = false;
                     toast.style.background = '#e74c3c';
-                    toast.innerHTML = '<span>⚠️ Temporary Sync Glitch. Will retry soon!</span>';
+                    toast.innerHTML = '<span>⚠️ সাময়িক সমস্যা। একটু পরে আবার চেষ্টা করা হবে!</span>';
                     setTimeout(() => toast.remove(), 3000);
                     if (callback) callback(false);
                 }
@@ -631,168 +631,8 @@ try {
         }
     }
 
-    function syncLocations(statusCallback) {
-        return new Promise((resolve) => {
-            let iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:fixed; top:0; left:0; width:1000px; height:800px; opacity:0.001; border:none; z-index:-999; pointer-events:none;';
-            iframe.src = window.location.origin + window.location.pathname + '#/reports/po-mis-reports/po-mis-1-index';
-            document.body.appendChild(iframe);
-
-            let timeout = setTimeout(() => { iframe.remove(); resolve(false); }, 60000);
-
-            iframe.onload = () => {
-                if(statusCallback) statusCallback("সিস্টেম স্ক্যান করা হচ্ছে...");
-                setTimeout(async () => {
-                    try {
-                        let doc = iframe.contentDocument || iframe.contentWindow.document;
-                        let win = iframe.contentWindow;
-
-                        let reportLvl = null, branchSel = null;
-                        let formReadyCount = 0;
-                        for(let i=0; i<30; i++) {
-                            reportLvl = doc.querySelector('select[name="cbo_report_level"]');
-                            branchSel = doc.querySelector('select[name="cbo_branch"]');
-                            if(reportLvl || branchSel) break;
-
-                            let anyElement = doc.querySelector('select, button, input, label, table, .card, .panel, h1, h2, h3, h4');
-                            if (anyElement) {
-                                formReadyCount++;
-                                if (formReadyCount >= 2) break;
-                            }
-                            await new Promise(r => setTimeout(r, 300));
-                        }
-
-                        let zones = [], areas = [], branches = [];
-                        let zMap = {}, aMap = {};
-
-                        if (reportLvl) {
-                            let hasZone = Array.from(reportLvl.options).some(o => o.value === '3');
-                            let hasArea = Array.from(reportLvl.options).some(o => o.value === '2');
-                            let hasBranch = Array.from(reportLvl.options).some(o => o.value === '1');
-
-                            if (hasZone) {
-                                sessionStorage.setItem('mf_user_type', 'HO');
-                                if(statusCallback) statusCallback("জোন সিঙ্ক হচ্ছে...");
-                                triggerVueChange(reportLvl, '3', win);
-                                await new Promise(r => setTimeout(r, 800));
-                                let zoneSel = await waitForOptions(doc, 'select[name="cbo_zone"]');
-                                if (zoneSel) {
-                                    let currentZone = "Unknown Zone";
-                                    Array.from(zoneSel.options).forEach(opt => {
-                                        if (opt.value && opt.value !== '-1' && !opt.text.includes('--')) {
-                                            if (!opt.disabled && !opt.value.includes('@@@')) {
-                                                currentZone = opt.text.trim();
-                                                zones.push({id: opt.value, name: currentZone});
-                                            } else if (opt.disabled && opt.value.includes('@@@')) {
-                                                let areaName = opt.text.replace(/\u00A0/g, '').replace(/@@@/g, '').trim();
-                                                if(areaName) zMap[areaName] = currentZone;
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-
-                            if (hasArea) {
-                                if (!hasZone) sessionStorage.setItem('mf_user_type', 'AREA');
-                                if(statusCallback) statusCallback("অঞ্চল সিঙ্ক হচ্ছে...");
-                                triggerVueChange(reportLvl, '2', win);
-                                await new Promise(r => setTimeout(r, 800));
-                                let areaSel = await waitForOptions(doc, 'select[name="cbo_area"]');
-                                if (areaSel) {
-                                    let currentArea = "Unknown Area";
-                                    Array.from(areaSel.options).forEach(opt => {
-                                        if (opt.value && opt.value !== '-1' && !opt.text.includes('--')) {
-                                            if (!opt.disabled && !opt.value.includes('@@@')) {
-                                                currentArea = opt.text.trim();
-                                                areas.push({id: opt.value, name: currentArea, zone: zMap[currentArea] || "Unknown Zone"});
-                                            } else if (opt.disabled && opt.value.includes('@@@')) {
-                                                let branchId = opt.value.split('##')[1] || opt.value.replace(/[^0-9]/g, '');
-                                                let branchNameClean = opt.text.replace(/\u00A0/g, '').replace(/@@@/g, '').trim();
-                                                if(branchId) aMap[branchId] = currentArea;
-                                                if(branchNameClean) aMap[branchNameClean] = currentArea;
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-
-                            if (hasBranch) {
-                                if (!hasZone && !hasArea) sessionStorage.setItem('mf_user_type', 'BRANCH');
-                                if(statusCallback) statusCallback("শাখা সিঙ্ক হচ্ছে...");
-                                triggerVueChange(reportLvl, '1', win);
-                                await new Promise(r => setTimeout(r, 800));
-                                let bSel = await waitForOptions(doc, 'select[name="cbo_branch"]');
-                                if (bSel) {
-                                    Array.from(bSel.options).forEach(opt => {
-                                        if (opt.value && opt.value !== '-1' && !opt.text.includes('--')) {
-                                            let bName = opt.text.trim();
-                                            if (!opt.disabled && !opt.value.includes('@@@') && !/\b(area|zone)\b/i.test(bName)) {
-                                                let bId = opt.value;
-                                                let bArea = aMap[bId] || aMap[bName] || "Unknown Area";
-                                                branches.push({id: bId, name: bName, area: bArea, zone: zMap[bArea] || "Unknown Zone"});
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                        else if (branchSel) {
-                            sessionStorage.setItem('mf_user_type', 'AREA');
-                            if(statusCallback) statusCallback("শাখা সিঙ্ক হচ্ছে...");
-                            let bSel = await waitForOptions(doc, 'select[name="cbo_branch"]', 0);
-                            if (bSel) {
-                                Array.from(bSel.options).forEach(opt => {
-                                    if (opt.value && opt.value !== '-1' && opt.value !== '' && !opt.text.includes('--')) {
-                                        let bName = opt.text.trim();
-                                        if (!opt.disabled && !opt.value.includes('@@@') && !/\b(area|zone)\b/i.test(bName)) {
-                                            branches.push({id: opt.value, name: bName, area: 'N/A', zone: 'N/A'});
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                        else {
-                            sessionStorage.setItem('mf_user_type', 'BRANCH');
-                            if(statusCallback) statusCallback("সিস্টেম প্রস্তুত!");
-                            branches.push({id: 'SELF', name: 'My Branch', area: 'N/A', zone: 'N/A'});
-                        }
-
-                        sessionStorage.setItem('mf_cached_zones', JSON.stringify(zones));
-                        sessionStorage.setItem('mf_cached_areas', JSON.stringify(areas));
-                        sessionStorage.setItem('mf_cached_branches', JSON.stringify(branches));
-                        
-                        clearTimeout(timeout); iframe.remove(); resolve(true);
-                    } catch(e) { clearTimeout(timeout); iframe.remove(); resolve(false); }
-                }, 300);
-            };
-        });
-    }
-
     function performRoleWiseSync() {
-        if (document.getElementById('sync-overlay')) return;
-
-        const overlay = document.createElement('div');
-        overlay.id = 'sync-overlay';
-        overlay.style.cssText = 'position:fixed; top:15px; right:15px; background:#f39c12; color:white; padding:8px 12px; z-index:99999; border-radius:4px; font-size:11px; font-weight:bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3);';
-        overlay.innerHTML = '⚙️ Auto Syncing...';
-        document.body.appendChild(overlay);
-
-        syncLocations((msg) => {
-            if(document.getElementById('sync-overlay')) {
-                document.getElementById('sync-overlay').innerHTML = `⚙️ ${msg}`;
-            }
-        }).then(success => {
-            let ov = document.getElementById('sync-overlay');
-            if(ov) {
-                if(success) {
-                    ov.style.background = '#27ae60';
-                    ov.innerHTML = '✅ Synced!';
-                } else {
-                    ov.style.background = '#e74c3c';
-                    ov.innerHTML = '❌ Sync Failed!';
-                }
-                setTimeout(() => ov.remove(), 2000);
-            }
+        window.runGlobalHierarchySync(true, (success) => {
             if(document.getElementById('bde-ui-level')) updateUIForRole();
         });
     }
@@ -907,7 +747,7 @@ try {
 
         document.getElementById('bde-sync-btn').onclick = () => {
             document.getElementById('bde-status-msg').innerText = "⏳ ডাটাবেস সিঙ্ক হচ্ছে...";
-            syncLocations((msg) => { document.getElementById('bde-status-msg').innerText = msg; }).then((success) => {
+            window.runGlobalHierarchySync(true, (success) => {
                 if(success) {
                     document.getElementById('bde-status-msg').innerHTML = "<span style='color:green;'>✅ সিঙ্ক সফল!</span>";
                     updateUIForRole();
@@ -1317,16 +1157,7 @@ try {
         return doc.querySelector(selector);
     }
 
-    function syncLocations(statusCallback) {
-        return new Promise((resolve) => {
-            if (statusCallback) statusCallback("সেন্ট্রাল সিঙ্ক হচ্ছে...");
-            if (window.runGlobalHierarchySync) {
-                window.runGlobalHierarchySync(true, (success) => resolve(success));
-            } else {
-                resolve(false);
-            }
-        });
-    }
+
 
     function scrapeViaGhost(hashUrl, targetDate, reportLevel, targetId, type, statusCallback) {
         return new Promise((resolve) => {
@@ -1404,6 +1235,11 @@ try {
                         else if (type === 'ais') {
                             let dateInputAis = doc.querySelector('input[name="txt_as_on_date"]');
                             if(dateInputAis && dateInputAis.value !== targetDate) triggerVueChange(dateInputAis, targetDate, win);
+
+                            let fractionSel = doc.querySelector('select[name="cbo_is_fraction_contain"]');
+                            if (fractionSel && fractionSel.value !== "1") {
+                                triggerVueChange(fractionSel, "1", win);
+                            }
 
                             let checkbox = doc.getElementById('chk_show_ledger_code1');
                             let checkLabel = doc.querySelector('label[for="chk_show_ledger_code1"]');
@@ -1595,18 +1431,16 @@ try {
             document.getElementById('start-audit-btn').disabled = true;
             document.getElementById('export-excel-btn').style.display = 'none';
             
-            syncLocations((msg) => { 
-                let st = document.getElementById('audit-status');
-                if(st) st.innerText = msg; 
-            }).then((success) => {
-                renderUI();
-                let saBtn = document.getElementById('start-audit-btn');
-                if(saBtn) saBtn.disabled = false;
-                
+            window.runGlobalHierarchySync(true, (success) => { 
                 let st = document.getElementById('audit-status');
                 if(st) {
-                    if(success) st.innerText = "✅ সিংক সফল হয়েছে!";
-                    else st.innerHTML = "<span style='color:red;'>❌ সিংক ব্যর্থ!</span>";
+                    if(success) {
+                        st.innerHTML = `<span style="color:#27ae60;">✅ সিস্টেম প্রস্তুত!</span>`;
+                        document.getElementById('start-audit-btn').disabled = false;
+                        populateTargets();
+                    } else {
+                        st.innerHTML = `<span style="color:#e74c3c;">❌ সিংক ফেইল্ড!</span>`;
+                    }
                 }
             });
         };
@@ -1881,7 +1715,7 @@ try {
             
             let reportLevel = '1';
             let targetId = 'SELF';
-            let targetName = 'My Branch';
+            let targetName = localStorage.getItem('microfin_entity_name') || 'My Branch';
             let isBatchMode = false;
             let branchesToProcess = [];
 
@@ -2321,124 +2155,6 @@ try {
         };
     }
 
-    // ৩. Role-Based Central Master Sync Delegation
-    function performZeroTouchSync(force = false) {
-        if (window.runGlobalHierarchySync) {
-            isSyncing = true;
-            window.runGlobalHierarchySync(force, () => {
-                isSyncing = false;
-                document.querySelectorAll('.blockUI, .modal-backdrop, .blockOverlay, .sweet-overlay').forEach(el => el.remove());
-            });
-        }
-    }
-
-    // ব্যাকগ্রাউন্ড থেকে API ও ব্রাঞ্চ লিস্ট নিশ্চিতকরণ
-    async function ensureApiAndBranchList(force = false) {
-        let savedUrl = sessionStorage.getItem('mf_cloned_url') || localStorage.getItem('mf_cloned_url_backup');
-        let savedBList = localStorage.getItem('microfin_branch_list');
-
-        if (force || !savedUrl || !savedBList || JSON.parse(savedBList || '[]').length === 0) {
-            let status = document.getElementById('status-text');
-            if (status) status.innerText = "Connecting to member servers via background tab...";
-            
-            await new Promise((resolve) => {
-                let ifr = document.createElement('iframe');
-                ifr.style.cssText = 'position:fixed; top:0px; left:-9999px; width:100px; height:100px;';
-                ifr.src = window.location.origin + window.location.pathname + '#/members/members/index';
-                document.body.appendChild(ifr);
-
-                let timer = setTimeout(() => { ifr.remove(); resolve(); }, 12000);
-
-                ifr.onload = () => {
-                    setTimeout(async () => {
-                        try {
-                            let win = ifr.contentWindow;
-                            let doc = win.document || ifr.contentDocument;
-
-                            // 🌟 Inject XHR & Fetch interceptors directly into iframe window so background capture works!
-                            try {
-                                const ifrOpen = win.XMLHttpRequest.prototype.open;
-                                const ifrSetHeader = win.XMLHttpRequest.prototype.setRequestHeader;
-                                const ifrSend = win.XMLHttpRequest.prototype.send;
-                                win.XMLHttpRequest.prototype.open = function(method, url) { this._url = url; this._headers = {}; ifrOpen.apply(this, arguments); };
-                                win.XMLHttpRequest.prototype.setRequestHeader = function(name, value) { this._headers[name] = value; ifrSetHeader.apply(this, arguments); };
-                                win.XMLHttpRequest.prototype.send = function(body) {
-                                    if (this._url && (this._url.includes('cbo_branch') || this._url.includes('cbo_member_status') || (this._url.includes('members') && (this._url.includes('limit=') || this._url.includes('ajax') || this._url.includes('list'))))) {
-                                        clonedUrl = this._url; 
-                                        clonedHeaders = Object.assign({}, this._headers); 
-                                        sessionStorage.setItem('mf_cloned_url', clonedUrl);
-                                        sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
-                                        localStorage.setItem('mf_cloned_url_backup', clonedUrl);
-                                        localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
-                                    }
-                                    ifrSend.apply(this, arguments);
-                                };
-                                const ifrFetch = win.fetch;
-                                if (ifrFetch) {
-                                    win.fetch = function(url, options) {
-                                        let urlStr = (typeof url === 'string' ? url : (url && url.url ? url.url : '') || '');
-                                        if (urlStr && (urlStr.includes('cbo_branch') || urlStr.includes('cbo_member_status') || (urlStr.includes('members') && (urlStr.includes('limit=') || urlStr.includes('ajax') || urlStr.includes('list'))))) {
-                                            clonedUrl = urlStr;
-                                            if (options && options.headers) clonedHeaders = Object.assign({}, options.headers);
-                                            sessionStorage.setItem('mf_cloned_url', clonedUrl);
-                                            sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
-                                            localStorage.setItem('mf_cloned_url_backup', clonedUrl);
-                                            localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
-                                        }
-                                        return ifrFetch.apply(this, arguments);
-                                    };
-                                }
-                            } catch(hkErr) { console.error("Iframe hook error:", hkErr); }
-
-                            let waitLimit = 25;
-                            while(!doc.querySelector('#custom-search-btn') && waitLimit > 0) {
-                                await new Promise(r => setTimeout(r, 500));
-                                waitLimit--;
-                            }
-
-                            let cbo = doc.querySelector('select[name="cbo_branch"]');
-                            let bList = [];
-                            if (cbo && cbo.options.length > 1) {
-                                bList = Array.from(cbo.options)
-                                    .filter(o => o.value !== '' && o.value !== '1' && o.value !== '-1')
-                                    .filter(o => !/area\b/i.test(o.text) && !/zone\b/i.test(o.text))
-                                    .map(o => ({ id: o.value, name: o.text.trim() }));
-                            } else {
-                                let branchName = localStorage.getItem('microfin_entity_name') || "My Branch";
-                                let bInfo = doc.querySelector('.branch_info') || document.querySelector('.branch_info');
-                                if(bInfo) {
-                                    let match = bInfo.innerText.match(/Branch:\s*(.*)/i);
-                                    if(match && match[1]) branchName = match[1].split('\n')[0].trim();
-                                }
-                                let bId = doc.querySelector('input[name="cbo_branch"]')?.value || (cbo ? cbo.value : '') || '';
-                                if (bId === 'SELF' || bId === '-1' || bId === '0') bId = '';
-                                bList = [{ id: bId, name: branchName, area: 'Branch', zone: 'Branch' }];
-                            }
-                            if (bList.length > 0) {
-                                localStorage.setItem('microfin_branch_list', JSON.stringify(bList));
-                            }
-
-                            let sBtn = doc.querySelector('#custom-search-btn');
-                            if (sBtn) {
-                                if(cbo) cbo.dispatchEvent(new Event('change', { bubbles: true }));
-                                sBtn.click();
-                                let checks = 0;
-                                while (!sessionStorage.getItem('mf_cloned_url') && !localStorage.getItem('mf_cloned_url_backup') && checks < 20) {
-                                    await new Promise(r => setTimeout(r, 150));
-                                    checks++;
-                                }
-                                await new Promise(r => setTimeout(r, 500));
-                            }
-                        } catch(e) { console.error("Iframe sync error:", e); }
-                        clearTimeout(timer);
-                        ifr.remove();
-                        resolve();
-                    }, 1500);
-                };
-            });
-        }
-    }
-
     // ৪. API ডেটা ফেচার (Strict & Proven Logic)
     async function fetchMemberCount(branchId, nidStatus) {
         if (!clonedUrl) {
@@ -2449,8 +2165,28 @@ try {
             } catch(e){}
         }
         if(!clonedUrl) return 0;
-
+        
+        // Preserve original query parameters ONLY if not rewriting, otherwise clear incompatible ones
         let urlObj = new URL(clonedUrl.startsWith('http') ? clonedUrl : window.location.origin + clonedUrl);
+        
+        if (urlObj.pathname.includes('reports/po-mis-reports')) {
+            urlObj.pathname = urlObj.pathname.replace(/reports\/po-mis-reports\/[a-zA-Z0-9-]+/i, 'members/members/ajax_list');
+            
+            // If we rewrote a MIS report URL into a Member API URL, the MIS query parameters 
+            // (like cbo_month, cbo_year) will cause the Member API to return 0 or crash.
+            let existingBranch = urlObj.searchParams.get('cbo_branch');
+            
+            // Clear all MIS parameters
+            urlObj.search = '';
+            
+            // If the original URL had a valid branch and we weren't passed an explicit one, restore it.
+            if (!branchId || branchId === '' || branchId === 'SELF' || branchId === '0' || branchId === '-1') {
+                if (existingBranch && existingBranch !== '-1') {
+                    branchId = existingBranch;
+                }
+            }
+        }
+
         urlObj.searchParams.set('limit', '1');
         if (branchId && branchId !== '' && branchId !== 'SELF' && branchId !== '0' && branchId !== '-1') {
             urlObj.searchParams.set('cbo_branch', branchId);
@@ -2786,16 +2522,70 @@ try {
                     document.getElementById('table-container').innerHTML = ''; 
                     document.getElementById('export-btn').style.display = 'none';
 
-                    await ensureApiAndBranchList();
+                    // Ensure basic hierarchy is synced
+                    await new Promise(resolve => window.runGlobalHierarchySync(false, resolve));
+
+                    // Silently capture exact Member API URL
+                    status.innerText = "Connecting to Member Database...";
+                    await new Promise(resolve => {
+                        let ifr = document.createElement('iframe');
+                        ifr.style.cssText = 'position:fixed; top:-9999px; left:-9999px; width:100px; height:100px; opacity:0; pointer-events:none; z-index:-9999;';
+                        ifr.src = window.location.origin + window.location.pathname + '#/members/members/index';
+                        document.body.appendChild(ifr);
+                        
+                        let timer = setTimeout(() => {
+                            if(ifr.parentNode) ifr.remove();
+                            resolve();
+                        }, 10000);
+
+                        ifr.onload = () => {
+                            setTimeout(async () => {
+                                try {
+                                    let doc = ifr.contentDocument || ifr.contentWindow.document;
+                                    let win = ifr.contentWindow;
+                                    
+                                    const origOpen = win.XMLHttpRequest.prototype.open;
+                                    const origSend = win.XMLHttpRequest.prototype.send;
+                                    win.XMLHttpRequest.prototype.open = function(m, u) { this._url = u; origOpen.apply(this, arguments); };
+                                    win.XMLHttpRequest.prototype.send = function(b) {
+                                        if (this._url && this._url.includes('members/members/ajax_list')) {
+                                            clonedUrl = this._url;
+                                            sessionStorage.setItem('mf_cloned_url', clonedUrl);
+                                            localStorage.setItem('mf_cloned_url_backup', clonedUrl);
+                                        }
+                                        origSend.apply(this, arguments);
+                                    };
+                                    
+                                    let waitLimit = 20;
+                                    while(!doc.querySelector('#custom-search-btn') && waitLimit > 0) {
+                                        await new Promise(r => setTimeout(r, 300));
+                                        waitLimit--;
+                                    }
+                                    
+                                    let sBtn = doc.querySelector('#custom-search-btn');
+                                    if(sBtn) {
+                                        sBtn.click();
+                                        let checks = 0;
+                                        while(!clonedUrl && checks < 20) {
+                                            await new Promise(r => setTimeout(r, 150));
+                                            checks++;
+                                        }
+                                    }
+                                } catch(e) {}
+                                clearTimeout(timer);
+                                if(ifr.parentNode) ifr.remove();
+                                resolve();
+                            }, 500);
+                        };
+                    });
 
                     let savedBListStr = localStorage.getItem('microfin_branch_list');
                     let rawBranches = [];
                     if (savedBListStr && JSON.parse(savedBListStr).length > 0) {
                         let bList = JSON.parse(savedBListStr);
                         rawBranches = bList.map(o => {
-                            let cleanId = (o.id === 'SELF' || o.id === '0' || o.id === '-1') ? '' : o.id;
                             return {
-                                id: cleanId, 
+                                id: o.id, 
                                 name: o.name, 
                                 area: maps.aMap[o.id] || o.area || 'Assigned Area', 
                                 zone: maps.zMap[o.id] || o.zone || 'Assigned Zone'
