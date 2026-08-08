@@ -2698,7 +2698,7 @@ try {
                                 zoneVerified += areaVerified;
                             }
                             let zonePerc = zoneActive > 0 ? Math.round((zoneVerified / zoneActive) * 100) : 0;
-                            html += `<tr style="background:#e6f4ea; font-weight:bold;"><td style="text-align:left; padding:4px; word-break:break-word;">📊 Total Zone (${z})</td><td style="text-align:center; padding:4px;">${zoneActive}</td><td style="text-align:center; padding:4px;">${zoneVerified}</td><td style="text-align:center; color:green; padding:4px;">${zonePerc}%</td></tr>`;
+                            html += `<tr style="background:#e6f4ea; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:normal;">📊 Total Zone (${z})</td><td style="text-align:center; padding:2px;">${zoneActive}</td><td style="text-align:center; padding:2px;">${zoneVerified}</td><td style="text-align:center; color:green; padding:2px;">${zonePerc}%</td></tr>`;
                             
                             totalHOActive += zoneActive;
                             totalHOVerified += zoneVerified;
@@ -2706,7 +2706,7 @@ try {
                         
                         if (Object.keys(tree).length > 1) {
                             let hoPerc = totalHOActive > 0 ? Math.round((totalHOVerified / totalHOActive) * 100) : 0;
-                            html += `<tr style="background:#2c3e50; color:white; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">📊 Grand Total</td><td style="text-align:center; padding:2px;">${totalHOActive}</td><td style="text-align:center; padding:2px;">${totalHOVerified}</td><td style="text-align:center; color:#f1c40f; padding:2px;">${hoPerc}%</td></tr>`;
+                            html += `<tr style="background:#2c3e50; color:white; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:normal;">📊 Grand Total</td><td style="text-align:center; padding:2px;">${totalHOActive}</td><td style="text-align:center; padding:2px;">${totalHOVerified}</td><td style="text-align:center; color:#f1c40f; padding:2px;">${hoPerc}%</td></tr>`;
                         }
                     } 
                     else if (currentRole === 'ZONE') {
@@ -2731,7 +2731,7 @@ try {
                                 html += `<tr style="background:#fff; font-size:11px;"><td style="padding:2px; white-space:nowrap;">&nbsp;&nbsp;🏷️ ${b.name}</td><td style="text-align:center; padding:2px;">${active}</td><td style="text-align:center; padding:2px;">${verified}</td><td style="text-align:center; padding:2px;"><b>${perc}%</b></td></tr>`;
                             }
                             let areaPerc = areaActive > 0 ? Math.round((areaVerified / areaActive) * 100) : 0;
-                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">📊 Total Area (${a})</td><td style="text-align:center; padding:2px;">${areaActive}</td><td style="text-align:center; padding:2px;">${areaVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${areaPerc}%</td></tr>`;
+                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:normal;">📊 Total Area (${a})</td><td style="text-align:center; padding:2px;">${areaActive}</td><td style="text-align:center; padding:2px;">${areaVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${areaPerc}%</td></tr>`;
                             
                             grandActive += areaActive;
                             grandVerified += areaVerified;
@@ -2744,7 +2744,7 @@ try {
                             } else if (maps.entityName) {
                                 totalLabel = `📊 Grand Total (${maps.entityName})`;
                             }
-                            html += `<tr style="background:#e6f4ea; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:green; padding:2px;">${grandPerc}%</td></tr>`;
+                            html += `<tr style="background:#e6f4ea; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:normal;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:green; padding:2px;">${grandPerc}%</td></tr>`;
                         }
                     } 
                     else { 
@@ -2768,7 +2768,7 @@ try {
                             } else if (maps.entityName) {
                                 totalLabel = `📊 Grand Total (${maps.entityName})`;
                             } 
-                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${grandPerc}%</td></tr>`;
+                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:normal;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${grandPerc}%</td></tr>`;
                         }
                     }
                     html += `</table>`;
