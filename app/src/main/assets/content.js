@@ -1762,10 +1762,14 @@ try {
             let targetDate = document.getElementById('custom-audit-date').value;
             let fileName = `Audit_Report_${targetName.replace(/\s+/g, '_')}_${targetDate}.xls`;
 
+            // Strip emojis for clean Excel view and prevent mobile Mojibake
+            xmlContent = xmlContent.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '');
+            let finalOutput = "\uFEFF" + xmlContent; // Add UTF-8 BOM
+
             if (window.AndroidDownloader && window.AndroidDownloader.saveExcel) {
-                window.AndroidDownloader.saveExcel(xmlContent, fileName);
+                window.AndroidDownloader.saveExcel(finalOutput, fileName);
             } else {
-                let blob = new Blob([xmlContent], {type: 'application/vnd.ms-excel;charset=utf-8;'});
+                let blob = new Blob([finalOutput], {type: 'application/vnd.ms-excel;charset=utf-8;'});
                 let a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
                 a.download = fileName;
@@ -2639,11 +2643,11 @@ try {
                                 🕒 Report Generated On: ${dtString}
                             </td>
                         </tr>
-                        <tr style="background:#ddd; font-size:10px;">
-                            <th style="padding:4px; text-align:left;">Hierarchy & Branch</th>
-                            <th style="padding:4px; text-align:center;">Active Member</th>
-                            <th style="padding:4px; text-align:center;">Verified Member</th>
-                            <th style="padding:4px; text-align:center;">Percentage</th>
+                        <tr style="background:#2c3e50; color:white; font-size:11px;">
+                            <th style="padding:2px; text-align:left; max-width:140px;">Hierarchy & Branch</th>
+                            <th style="padding:2px; text-align:center;">Active<br>Member</th>
+                            <th style="padding:2px; text-align:center;">Verified Active<br>Member</th>
+                            <th style="padding:2px; text-align:center;">Percen<br>tage</th>
                         </tr>`;
 
                     let uniqueZones = new Set(rawBranches.map(b => b.zone));
@@ -2702,7 +2706,7 @@ try {
                         
                         if (Object.keys(tree).length > 1) {
                             let hoPerc = totalHOActive > 0 ? Math.round((totalHOVerified / totalHOActive) * 100) : 0;
-                            html += `<tr style="background:#2c3e50; color:white; font-weight:bold;"><td style="text-align:left; padding:4px; word-break:break-word;">📊 Grand Total</td><td style="text-align:center; padding:4px;">${totalHOActive}</td><td style="text-align:center; padding:4px;">${totalHOVerified}</td><td style="text-align:center; color:#f1c40f; padding:4px;">${hoPerc}%</td></tr>`;
+                            html += `<tr style="background:#2c3e50; color:white; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">📊 Grand Total</td><td style="text-align:center; padding:2px;">${totalHOActive}</td><td style="text-align:center; padding:2px;">${totalHOVerified}</td><td style="text-align:center; color:#f1c40f; padding:2px;">${hoPerc}%</td></tr>`;
                         }
                     } 
                     else if (currentRole === 'ZONE') {
@@ -2724,10 +2728,10 @@ try {
                                 areaActive += active;
                                 areaVerified += verified;
                                 
-                                html += `<tr style="background:#fff;"><td style="padding:4px; word-break:break-word;">&nbsp;&nbsp;🏷️ ${b.name}</td><td style="text-align:center; padding:4px;">${active}</td><td style="text-align:center; padding:4px;">${verified}</td><td style="text-align:center; padding:4px;"><b>${perc}%</b></td></tr>`;
+                                html += `<tr style="background:#fff; font-size:11px;"><td style="padding:2px; white-space:nowrap;">&nbsp;&nbsp;🏷️ ${b.name}</td><td style="text-align:center; padding:2px;">${active}</td><td style="text-align:center; padding:2px;">${verified}</td><td style="text-align:center; padding:2px;"><b>${perc}%</b></td></tr>`;
                             }
                             let areaPerc = areaActive > 0 ? Math.round((areaVerified / areaActive) * 100) : 0;
-                            html += `<tr style="background:#fff2e6; font-weight:bold;"><td style="text-align:left; padding:4px; word-break:break-word;">📊 Total Area (${a})</td><td style="text-align:center; padding:4px;">${areaActive}</td><td style="text-align:center; padding:4px;">${areaVerified}</td><td style="text-align:center; color:#d35400; padding:4px;">${areaPerc}%</td></tr>`;
+                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">📊 Total Area (${a})</td><td style="text-align:center; padding:2px;">${areaActive}</td><td style="text-align:center; padding:2px;">${areaVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${areaPerc}%</td></tr>`;
                             
                             grandActive += areaActive;
                             grandVerified += areaVerified;
@@ -2740,7 +2744,7 @@ try {
                             } else if (maps.entityName) {
                                 totalLabel = `📊 Grand Total (${maps.entityName})`;
                             }
-                            html += `<tr style="background:#e6f4ea; font-weight:bold;"><td style="text-align:left; padding:4px; word-break:break-word;">${totalLabel}</td><td style="text-align:center; padding:4px;">${grandActive}</td><td style="text-align:center; padding:4px;">${grandVerified}</td><td style="text-align:center; color:green; padding:4px;">${grandPerc}%</td></tr>`;
+                            html += `<tr style="background:#e6f4ea; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:green; padding:2px;">${grandPerc}%</td></tr>`;
                         }
                     } 
                     else { 
@@ -2754,7 +2758,7 @@ try {
                             grandActive += active;
                             grandVerified += verified;
                             
-                            html += `<tr style="background:#fff;"><td style="padding:4px; word-break:break-word;"><span style="font-weight:bold; color:#2c3e50;">🏷️ ${b.name}</span></td><td style="text-align:center; padding:4px;">${active}</td><td style="text-align:center; padding:4px;">${verified}</td><td style="text-align:center; padding:4px;"><b>${perc}%</b></td></tr>`;
+                            html += `<tr style="background:#fff; font-size:11px;"><td style="padding:2px; white-space:nowrap;"><span style="font-weight:bold; color:#2c3e50;">🏷️ ${b.name}</span></td><td style="text-align:center; padding:2px;">${active}</td><td style="text-align:center; padding:2px;">${verified}</td><td style="text-align:center; padding:2px;"><b>${perc}%</b></td></tr>`;
                         }
                         if (rawBranches.length > 1) {
                             let grandPerc = grandActive > 0 ? Math.round((grandVerified / grandActive) * 100) : 0;
@@ -2764,7 +2768,7 @@ try {
                             } else if (maps.entityName) {
                                 totalLabel = `📊 Grand Total (${maps.entityName})`;
                             } 
-                            html += `<tr style="background:#fff2e6; font-weight:bold;"><td style="text-align:left; padding:4px; word-break:break-word;">${totalLabel}</td><td style="text-align:center; padding:4px;">${grandActive}</td><td style="text-align:center; padding:4px;">${grandVerified}</td><td style="text-align:center; color:#d35400; padding:4px;">${grandPerc}%</td></tr>`;
+                            html += `<tr style="background:#fff2e6; font-weight:bold; font-size:11px;"><td style="text-align:left; padding:2px; white-space:nowrap;">${totalLabel}</td><td style="text-align:center; padding:2px;">${grandActive}</td><td style="text-align:center; padding:2px;">${grandVerified}</td><td style="text-align:center; color:#d35400; padding:2px;">${grandPerc}%</td></tr>`;
                         }
                     }
                     html += `</table>`;
@@ -2841,10 +2845,14 @@ try {
                     let dateSuffix = new Date().toISOString().split('T')[0];
                     let fileName = `Member_Verification_${name}_${dateSuffix}.xls`;
 
+                    // Strip emojis for clean Excel view and prevent mobile Mojibake
+                    htmlContent = htmlContent.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '');
+                    let finalOutput = "\uFEFF" + htmlContent; // Add UTF-8 BOM
+
                     if (window.AndroidDownloader && window.AndroidDownloader.saveExcel) {
-                        window.AndroidDownloader.saveExcel(htmlContent, fileName);
+                        window.AndroidDownloader.saveExcel(finalOutput, fileName);
                     } else {
-                        let blob = new Blob([htmlContent], {type: 'application/vnd.ms-excel;charset=utf-8;'});
+                        let blob = new Blob([finalOutput], {type: 'application/vnd.ms-excel;charset=utf-8;'});
                         let a = document.createElement('a');
                         a.href = URL.createObjectURL(blob);
                         a.download = fileName;
