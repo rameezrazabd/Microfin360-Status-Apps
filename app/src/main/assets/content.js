@@ -15,7 +15,7 @@ try {
 (function checkAppUpdate() {
     const CURRENT_VERSION = "1.3"; // বর্তমান অ্যাপ ভার্সন
     
-    // ⚠️ নিচে YOUR_USERNAME এর জায়গায় আপনার গিটহাবের আসল ইউজারনেম বসিয়ে দিন
+    // ⚠️ নিচে YOUR_USERNAME এর জায়গায় আপনার গিটহাবের আসল ইউজারনেম বসিয়ে দিন 
     const UPDATE_JSON_URL = "https://raw.githubusercontent.com/rameezrazabd/Microfin360-Status-Apps/main/update.json"; 
 
     setTimeout(() => {
@@ -2644,10 +2644,10 @@ try {
                             </td>
                         </tr>
                         <tr style="background:#2c3e50; color:white; font-size:11px;">
-                            <th style="padding:2px; text-align:left; max-width:140px;">Hierarchy & Branch</th>
-                            <th style="padding:2px; text-align:center;">Active<br>Member</th>
-                            <th style="padding:2px; text-align:center;">Verified Active<br>Member</th>
-                            <th style="padding:2px; text-align:center;">Percen<br>tage</th>
+                            <th style="padding:2px; text-align:left; white-space:normal;">Hierarchy & Branch</th>
+                            <th style="padding:2px; text-align:center; white-space:normal;">Active Member</th>
+                            <th style="padding:2px; text-align:center; white-space:normal;">Verified Active Member</th>
+                            <th style="padding:2px; text-align:center; white-space:normal;">Percentage</th>
                         </tr>`;
 
                     let uniqueZones = new Set(rawBranches.map(b => b.zone));
