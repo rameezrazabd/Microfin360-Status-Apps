@@ -2529,14 +2529,14 @@ try {
                     status.innerText = "Connecting to Member Database...";
                     await new Promise(resolve => {
                         let ifr = document.createElement('iframe');
-                        ifr.style.cssText = 'position:fixed; top:-9999px; left:-9999px; width:100px; height:100px; opacity:0; pointer-events:none; z-index:-9999;';
+                        ifr.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; opacity:0; pointer-events:none; z-index:-9999;';
                         ifr.src = window.location.origin + window.location.pathname + '#/members/members/index';
                         document.body.appendChild(ifr);
                         
                         let timer = setTimeout(() => {
                             if(ifr.parentNode) ifr.remove();
                             resolve();
-                        }, 10000);
+                        }, 25000);
 
                         ifr.onload = () => {
                             setTimeout(async () => {
@@ -2556,7 +2556,20 @@ try {
                                         origSend.apply(this, arguments);
                                     };
                                     
-                                    let waitLimit = 20;
+                                    const origFetch = win.fetch;
+                                    if(origFetch) {
+                                        win.fetch = function(url, options) {
+                                            let urlStr = (typeof url === 'string' ? url : (url && url.url ? url.url : '') || '');
+                                            if (urlStr && urlStr.includes('members/members/ajax_list')) {
+                                                clonedUrl = urlStr;
+                                                sessionStorage.setItem('mf_cloned_url', clonedUrl);
+                                                localStorage.setItem('mf_cloned_url_backup', clonedUrl);
+                                            }
+                                            return origFetch.apply(this, arguments);
+                                        };
+                                    }
+                                    
+                                    let waitLimit = 60; // 18 seconds for slow mobile
                                     while(!doc.querySelector('#custom-search-btn') && waitLimit > 0) {
                                         await new Promise(r => setTimeout(r, 300));
                                         waitLimit--;
@@ -2566,7 +2579,7 @@ try {
                                     if(sBtn) {
                                         sBtn.click();
                                         let checks = 0;
-                                        while(!clonedUrl && checks < 20) {
+                                        while(!clonedUrl && checks < 40) { // 6 seconds for API call
                                             await new Promise(r => setTimeout(r, 150));
                                             checks++;
                                         }
