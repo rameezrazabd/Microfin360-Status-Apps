@@ -637,6 +637,15 @@ try {
         });
     }
 
+    function performZeroTouchSync(force = false) {
+        if (!force && localStorage.getItem('microfin_sync_status') === 'DONE') return;
+        window.runGlobalHierarchySync(true, (success) => {
+            if(success) {
+                localStorage.setItem('microfin_sync_status', 'DONE');
+            }
+        });
+    }
+
     let isBdeBtnClosed = false;
     function initFloatingButton() {
         if (isBdeBtnClosed || document.getElementById('bde-ghost-date-toggle')) return;
@@ -2119,20 +2128,51 @@ try {
     XMLHttpRequest.prototype.open = function(method, url) { this._url = url; this._headers = {}; origOpen.apply(this, arguments); };
     XMLHttpRequest.prototype.setRequestHeader = function(name, value) { this._headers[name] = value; origSetHeader.apply(this, arguments); };
     XMLHttpRequest.prototype.send = function(body) {
+        if (this._headers && (this._headers['Authorization'] || this._headers['authorization'])) {
+            clonedHeaders = Object.assign({}, this._headers); 
+            try {
+                sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
+                localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
+            } catch(e){}
+        }
+
         if (this._url && (this._url.includes('cbo_branch') || this._url.includes('cbo_member_status') || (this._url.includes('members') && (this._url.includes('limit=') || this._url.includes('ajax') || this._url.includes('list'))))) {
             clonedUrl = this._url; 
-            clonedHeaders = Object.assign({}, this._headers); 
             isCapturing = false;
             try {
                 sessionStorage.setItem('mf_cloned_url', clonedUrl);
-                sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
                 localStorage.setItem('mf_cloned_url_backup', clonedUrl);
-                localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
             } catch(e){}
             document.dispatchEvent(new Event('ApiCaptured'));
         }
         origSend.apply(this, arguments);
     };
+
+    const origFetch = window.fetch;
+    if(origFetch) {
+        window.fetch = async function(url, options) {
+            if (options && options.headers) {
+                let h = options.headers;
+                let auth = null;
+                if (h instanceof Headers) auth = h.get('Authorization') || h.get('authorization');
+                else if (typeof h === 'object') auth = h['Authorization'] || h['authorization'];
+                
+                if (auth) {
+                    if (h instanceof Headers) {
+                        clonedHeaders = {};
+                        h.forEach((v, k) => clonedHeaders[k] = v);
+                    } else {
+                        clonedHeaders = Object.assign({}, h);
+                    }
+                    try {
+                        sessionStorage.setItem('mf_cloned_headers', JSON.stringify(clonedHeaders));
+                        localStorage.setItem('mf_cloned_headers_backup', JSON.stringify(clonedHeaders));
+                    } catch(e){}
+                }
+            }
+            return origFetch.apply(this, arguments);
+        };
+    }
 
     function triggerVueChange(el, value, win) {
         if (!el) return;
@@ -2167,19 +2207,14 @@ try {
         if(!clonedUrl) return 0;
         
         // Preserve original query parameters ONLY if not rewriting, otherwise clear incompatible ones
-        let urlObj = new URL(clonedUrl.startsWith('http') ? clonedUrl : window.location.origin + clonedUrl);
+        let basePath = window.location.pathname.replace('/#/', '/').replace('/#', '/');
+        if (!basePath.endsWith('/')) basePath += '/';
+        let urlObj = new URL(clonedUrl.startsWith('http') ? clonedUrl : window.location.origin + basePath + clonedUrl);
         
         if (urlObj.pathname.includes('reports/po-mis-reports')) {
             urlObj.pathname = urlObj.pathname.replace(/reports\/po-mis-reports\/[a-zA-Z0-9-]+/i, 'members/members/ajax_list');
-            
-            // If we rewrote a MIS report URL into a Member API URL, the MIS query parameters 
-            // (like cbo_month, cbo_year) will cause the Member API to return 0 or crash.
             let existingBranch = urlObj.searchParams.get('cbo_branch');
-            
-            // Clear all MIS parameters
             urlObj.search = '';
-            
-            // If the original URL had a valid branch and we weren't passed an explicit one, restore it.
             if (!branchId || branchId === '' || branchId === 'SELF' || branchId === '0' || branchId === '-1') {
                 if (existingBranch && existingBranch !== '-1') {
                     branchId = existingBranch;
@@ -2197,9 +2232,12 @@ try {
         urlObj.searchParams.set('cbo_member_status', 'A'); 
         try {
             const response = await fetch(urlObj.toString(), { headers: clonedHeaders });
+            if (!response.ok) return 0;
             const data = await response.json();
-            return data.total_rows || 0;
-        } catch (e) { return 0; }
+            return data.total || data.total_rows || data.count || 0;
+        } catch (error) {
+            return 0;
+        }
     }
 
     // ড্যাশবোর্ডে ভাসমান বাটন
@@ -2529,8 +2567,8 @@ try {
                     status.innerText = "Connecting to Member Database...";
                     await new Promise(resolve => {
                         let ifr = document.createElement('iframe');
-                        ifr.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; opacity:0; pointer-events:none; z-index:-9999;';
-                        ifr.src = window.location.origin + window.location.pathname + '#/members/members/index';
+                        ifr.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; opacity:0; pointer-events:none; z-index:-9999; visibility:hidden;';
+                        ifr.src = window.location.origin + window.location.pathname.replace('/#/', '/').replace('/#', '/') + '#/members/members/index';
                         document.body.appendChild(ifr);
                         
                         let timer = setTimeout(() => {
@@ -2570,12 +2608,12 @@ try {
                                     }
                                     
                                     let waitLimit = 60; // 18 seconds for slow mobile
-                                    while(!doc.querySelector('#custom-search-btn') && waitLimit > 0) {
+                                    while(!doc.querySelector('#custom-search-btn') && !doc.querySelector('.search-btn') && !doc.querySelector('button[type="submit"]') && waitLimit > 0) {
                                         await new Promise(r => setTimeout(r, 300));
                                         waitLimit--;
                                     }
                                     
-                                    let sBtn = doc.querySelector('#custom-search-btn');
+                                    let sBtn = doc.querySelector('#custom-search-btn') || doc.querySelector('.search-btn') || doc.querySelector('button[type="submit"]');
                                     if(sBtn) {
                                         sBtn.click();
                                         let checks = 0;
@@ -2588,7 +2626,7 @@ try {
                                 clearTimeout(timer);
                                 if(ifr.parentNode) ifr.remove();
                                 resolve();
-                            }, 500);
+                            }, 1000);
                         };
                     });
 
@@ -2704,3 +2742,8 @@ try {
     }, 1000);
 
 })();
+
+
+
+
+
